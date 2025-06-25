@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Registro/Login + Conversas</title>
+  <style>
+    /* Reset simples */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f7fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h2 {
+      margin-bottom: 15px;
+      color: #222;
+    }
+
+    #form-container, #area-conversa {
+      background: #fff;
+      padding: 25px 30px;
+      border-radius: 10px;
+      box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 500px;
+    }
+
+    .form {
+      margin-bottom: 15px;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    textarea {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1.8px solid #ccc;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color 0.3s ease;
+      resize: vertical;
+      font-family: inherit;
+      color: #333;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus,
+    textarea:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+
+    button {
+      cursor: pointer;
+      background-color: #007bff;
+      border: none;
+      color: white;
+      font-weight: 600;
+      padding: 12px 20px;
+      font-size: 1rem;
+      border-radius: 8px;
+      transition: background-color 0.3s ease;
+      margin-right: 10px;
+      margin-top: 10px;
+      user-select: none;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    button:active {
+      background-color: #004494;
+    }
+
+    button[onclick="deslogar()"] {
+      background-color: #dc3545;
+      margin-bottom: 15px;
+      margin-right: 0;
+    }
+
+    button[onclick="deslogar()"]:hover {
+      background-color: #b52a37;
+    }
+
+    p#mensagem,
+    p#status-salvo {
+      margin-top: 10px;
+      font-weight: 600;
+      color: #ff0000;
+      min-height: 22px;
+    }
+
+    p#status-salvo {
+      color: #28a745;
+    }
+
+    #lista-conversas {
+      margin-top: 20px;
+      max-height: 320px;
+      overflow-y: auto;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+
+    #lista-conversas div {
+      margin-bottom: 15px;
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 10px 15px;
+      box-shadow: inset 0 0 5px #ddd;
+    }
+
+    #lista-conversas textarea {
+      height: 80px;
+      font-size: 0.95rem;
+      margin-bottom: 8px;
+    }
+
+    hr {
+      border: none;
+      border-bottom: 1px solid #ddd;
+      margin: 10px 0;
+    }
+
+    @media (max-width: 600px) {
+      #form-container, #area-conversa {
+        width: 90%;
+        padding: 20px;
+      }
+
+      button {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>Login ou Registro</h2>
+
+  <div id="form-container">
+    <div class="form">
+      <input type="text" id="username" placeholder="Usuário" autocomplete="username" />
+    </div>
+    <div class="form">
+      <input type="password" id="password" placeholder="Senha" autocomplete="current-password" />
+    </div>
+    <button onclick="registrar()">Registrar</button>
+    <button onclick="logar()">Login</button>
+    <p id="mensagem"></p>
+  </div>
+
+  <div id="area-conversa">
+    <button onclick="deslogar()">🔓 Sair</button>
+    <h2>Bloco de notas</h2>
+    <textarea id="conversa" rows="5" placeholder="Escreva sua conversa..."></textarea><br/>
+    <button onclick="salvarConversa()">Salvar</button>
+    <p id="status-salvo"></p>
+
+    <h3>Suas Conversas:</h3>
+    <div id="lista-conversas"></div>
+  </div>
+
+  <script>
+    let usuarioLogado = null;
+
+    async function registrar() {
+      const res = await fetch('/registrar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value.trim()
+        })
+      });
+      const data = await res.text();
+      document.getElementById('mensagem').innerText = data;
+    }
+
+    async function logar() {
+      const res = await fetch('/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value.trim()
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        usuarioLogado = data.user;
+        document.getElementById('form-container').style.display = 'none';
+        document.getElementById('area-conversa').style.display = 'block';
+        carregarConversas();
+        document.getElementById('mensagem').innerText = '';
+      } else {
+        document.getElementById('mensagem').innerText = data.message;
+      }
+    }
+
+    async function salvarConversa() {
+      const texto = document.getElementById('conversa').value.trim();
+      if (!texto) {
+        document.getElementById('status-salvo').innerText = "Digite algo antes de salvar.";
+        return;
+      }
+      const res = await fetch('/salvar-conversa', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ texto, username: usuarioLogado })
+      });
+      const data = await res.text();
+      document.getElementById('status-salvo').innerText = data;
+      document.getElementById('conversa').value = "";
+      carregarConversas();
+    }
+
+    async function carregarConversas() {
+      const res = await fetch(`/conversas?username=${usuarioLogado}`);
+      const lista = await res.json();
+      const container = document.getElementById("lista-conversas");
+      container.innerHTML = "";
+
+      lista.forEach((item) => {
+        const div = document.createElement("div");
+        div.innerHTML = `
+          <p><strong>ID:</strong> ${item.id}</p>
+          <textarea id="edit-${item.id}">${item.texto}</textarea><br/>
+          <button onclick="atualizarConversa(${item.id})">Atualizar</button>
+          <hr/>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function atualizarConversa(id) {
+      const novoTexto = document.getElementById(`edit-${id}`).value.trim();
+      if (!novoTexto) {
+        alert('O texto da conversa não pode ficar vazio.');
+        return;
+      }
+      const res = await fetch('/atualizar-conversa', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id, texto: novoTexto })
+      });
+      const msg = await res.text();
+      alert(msg);
+      carregarConversas();
+    }
+
+    function deslogar() {
+      usuarioLogado = null;
+      document.getElementById("form-container").style.display = "block";
+      document.getElementById("area-conversa").style.display = "none";
+      document.getElementById("username").value = "";
+      document.getElementById("password").value = "";
+      document.getElementById("conversa").value = "";
+      document.getElementById("lista-conversas").innerHTML = "";
+      document.getElementById("status-salvo").innerText = "";
+      document.getElementById("mensagem").innerText = "Você saiu.";
+    }
+  </script>
+</body>
+</html>
